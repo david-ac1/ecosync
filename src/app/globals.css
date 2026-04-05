@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+:root {
+  --background: #F8F9FA;
+  --foreground: #171717;
+  
+  /* EcoSync Design Tokens */
+  --indigo-primary: #3525CD;
+  --indigo-accent: #4F46E5;
+  --lime-primary: #D9FF00;
+  --lime-accent: #CDF200;
+  --surface-base: #F8F9FA;
+  --surface-low: #F3F4F5;
+  --surface-lowest: #FFFFFF;
+  --outline-variant: #C7C4D8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  
+  --color-primary: var(--indigo-primary);
+  --color-primary-accent: var(--indigo-accent);
+  --color-secondary: var(--lime-primary);
+  --color-secondary-accent: var(--lime-accent);
+  
+  --color-surface: var(--surface-base);
+  --color-surface-low: var(--surface-low);
+  --color-surface-lowest: var(--surface-lowest);
+  
+  --shadow-ambient: 0 20px 40px rgba(77, 68, 227, 0.06);
+  
+  --radius-default: 16px;
+  --radius-md: 24px;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Glassmorphism Utility */
+.glass {
+  background: rgba(248, 249, 250, 0.8);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* Scanning Animation */
+@keyframes scan {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.animate-scan {
+  animation: scan 3s linear infinite;
+}
