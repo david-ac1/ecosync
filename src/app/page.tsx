@@ -1,12 +1,50 @@
-import React from "react";
+"use client";
+
+import React, { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
+interface InventoryItem {
+  title: string;
+  category: string;
+  bought_year: string;
+  resale_value: string;
+  health_score: number;
+  image_url?: string;
+}
+
 export default function Home() {
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [isAuditing, setIsAuditing] = useState(false);
+
+  useEffect(() => {
+    fetch("http://localhost:8000/api/inventory")
+      .then((res) => res.json())
+      .then((data) => setInventory(data))
+      .catch((err) => console.error("Error fetching inventory:", err));
+  }, []);
+
+  const handleStartAudit = async () => {
+    setIsAuditing(true);
+    try {
+      const res = await fetch("http://localhost:8000/api/audit/start", { method: "POST" });
+      const data = await res.json();
+      console.log("Audit result:", data);
+
+      // Simulate scanning for 3 seconds before resetting
+      setTimeout(() => {
+        setIsAuditing(false);
+      }, 3000);
+    } catch (err) {
+      console.error("Error starting audit:", err);
+      setIsAuditing(false);
+    }
+  };
+
   return (
-    <div className="bg-surface text-foreground selection:bg-secondary selection:text-foreground">
+    <div className="bg-surface text-foreground selection:bg-secondary selection:text-foreground font-sans">
       <Navbar />
 
       <main className="max-w-[1400px] mx-auto px-12 py-12">
@@ -23,14 +61,20 @@ export default function Home() {
               Value Locked in inactive personal assets. Ready for circular redistribution.
             </p>
           </div>
-          <Button variant="secondary" size="lg" className="mt-8 flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="lg"
+            className="mt-8 flex items-center gap-2"
+            onClick={handleStartAudit}
+            disabled={isAuditing}
+          >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-            START AUDIT
+            {isAuditing ? "AUDITING..." : "START AUDIT"}
           </Button>
         </div>
 
         {/* Intelligence Banner */}
-        <div className="relative w-full h-48 rounded-md bg-gradient-to-br from-primary to-primary-accent overflow-hidden mb-16 flex items-center justify-center text-center">
+        <div className={`relative w-full h-48 rounded-md bg-gradient-to-br from-primary to-primary-accent overflow-hidden mb-16 flex items-center justify-center text-center transition-all duration-500 ${isAuditing ? "opacity-100 scale-102" : "opacity-90"}`}>
           {/* Simple Graphic Patterns */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/3"></div>
@@ -38,12 +82,16 @@ export default function Home() {
           </div>
 
           <div className="relative z-10">
-            <h2 className="text-3xl font-bold text-white mb-2">Intelligence Engine Active</h2>
-            <p className="text-white/60 text-sm">Scanning 42 connected digital platforms for circular opportunities</p>
+            <h2 className="text-3xl font-bold text-white mb-2">
+              {isAuditing ? "Scanning Platforms..." : "Intelligence Engine Active"}
+            </h2>
+            <p className="text-white/60 text-sm">
+              {isAuditing ? "Parsing receipt data for 42 connected accounts" : "Scanning 42 connected digital platforms for circular opportunities"}
+            </p>
           </div>
 
           {/* Scan Beam */}
-          <div className="absolute top-0 bottom-0 w-1/4 bg-white/10 animate-scan pointer-events-none"></div>
+          {isAuditing && <div className="absolute top-0 bottom-0 w-1/4 bg-white/20 animate-scan pointer-events-none"></div>}
         </div>
 
         {/* Dashboard Grid */}
@@ -53,39 +101,24 @@ export default function Home() {
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
                 <h3 className="text-2xl font-bold tracking-tight">Detected Inventory</h3>
-                <span className="px-2 py-0.5 bg-surface-low rounded-sm text-[10px] font-bold text-foreground/40">24 ITEMS</span>
-              </div>
-              <div className="flex items-center gap-2 bg-surface-low p-1 rounded-sm">
-                <button className="p-1.5 bg-white shadow-sm rounded-xs"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h7v7H3V3zm11 0h7v7h-7V3zm0 11h7v7h-7v-7zm-11 0h7v7H3v-7z" /></svg></button>
-                <button className="p-1.5 text-foreground/30 hover:text-foreground"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z" /></svg></button>
+                <span className="px-2 py-0.5 bg-surface-low rounded-sm text-[10px] font-bold text-foreground/40">
+                  {inventory.length} ITEMS
+                </span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-6">
-              <InventoryCard
-                title="Arc'teryx Alpha SV"
-                category="Apparel"
-                bought="2023"
-                resale="$245"
-                health={88}
-                image="https://api.dicebear.com/7.x/identicon/svg?seed=arc"
-              />
-              <InventoryCard
-                title='iPad Pro 12.9" M2'
-                category="Tech"
-                bought="2022"
-                resale="$680"
-                health={62}
-                image="https://api.dicebear.com/7.x/identicon/svg?seed=ipad"
-              />
-              <InventoryCard
-                title="Uniqlo Down Parka"
-                category="Apparel"
-                bought="2021"
-                resale="$110"
-                health={41}
-                image="https://api.dicebear.com/7.x/identicon/svg?seed=uniqlo"
-              />
+              {inventory.map((item, idx) => (
+                <InventoryCard
+                  key={idx}
+                  title={item.title}
+                  category={item.category}
+                  bought={item.bought_year}
+                  resale={item.resale_value}
+                  health={item.health_score}
+                  image={item.image_url || "https://api.dicebear.com/7.x/identicon/svg?seed=item"}
+                />
+              ))}
             </div>
           </div>
 
