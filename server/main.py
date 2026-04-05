@@ -1,16 +1,18 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
+import uvicorn
+import os
+from dotenv import load_dotenv
+import random
+
 from services.market import market_service
 from services.predictor import predictor_engine
 from services.sustainability import shi_service
 from services.matchmaker import matchmaker_service
 from services.database import database_service
-import uvicorn
-import os
-from dotenv import load_dotenv
-import random
+from services.coordinator import coordinator_service
 
 load_dotenv()
 
@@ -87,6 +89,23 @@ async def get_feed():
         {"source": "AMAZON SYNC", "message": "Order #9924 verified: Sony WH-1000XM5", "time": "YESTERDAY"},
         {"source": "POLICY UPDATE", "message": "New EU circularity standards integrated", "time": "2 DAYS AGO"},
     ]
+
+@app.post("/api/redistribute/{item_idx}")
+async def redistribute_item(item_idx: int):
+    # Fetch original item to get context
+    if item_idx < 0 or item_idx >= len(items_db):
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    item = items_db[item_idx]
+    
+    # Trigger the autonomous coordinator
+    result = await coordinator_service.orchestrate_redistribution(item)
+    
+    return {
+        "status": "success",
+        "item": item["title"],
+        "redistribution": result
+    }
 
 @app.post("/api/audit/start")
 async def start_audit():

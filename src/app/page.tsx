@@ -27,10 +27,28 @@ interface FeedItem {
   status?: string;
 }
 
+interface RedistributionResult {
+  item: string;
+  redistribution: {
+    status: string;
+    progress: number;
+    label?: {
+      label_id: string;
+      tracking_number: string;
+      carrier: string;
+      status: string;
+      pickup_window: string;
+    };
+  };
+}
+
 export default function Home() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [isAuditing, setIsAuditing] = useState(false);
+  const [redistributingIdx, setRedistributingIdx] = useState<number | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [result, setResult] = useState<RedistributionResult | null>(null);
 
   useEffect(() => {
     // Fetch Inventory
@@ -67,6 +85,22 @@ export default function Home() {
     }
   };
 
+  const handleRedistribute = async (idx: number) => {
+    setRedistributingIdx(idx);
+    try {
+      const res = await fetch(`http://localhost:8000/api/redistribute/${idx}`, {
+        method: "POST"
+      });
+      const data = await res.json();
+      setResult(data);
+      setShowSuccessModal(true);
+      setRedistributingIdx(null);
+    } catch (err) {
+      console.error("Error redistributing item:", err);
+      setRedistributingIdx(null);
+    }
+  };
+
   // Calculate total CO2 offset from inventory
   const totalCO2Offset = inventory.reduce((total, item) => {
     const value = parseFloat(item.co2_saved?.replace('kg CO2', '') || '0');
@@ -74,7 +108,7 @@ export default function Home() {
   }, 0);
 
   return (
-    <div className="bg-surface text-foreground selection:bg-secondary selection:text-foreground font-sans">
+    <div className="bg-surface text-foreground selection:bg-secondary selection:text-foreground font-sans min-h-screen relative">
       <Navbar />
 
       <main className="max-w-[1400px] mx-auto px-12 py-12">
@@ -149,6 +183,8 @@ export default function Home() {
                   action={item.matching_action}
                   label={item.action_label}
                   image={item.image_url || "https://api.dicebear.com/7.x/identicon/svg?seed=item"}
+                  isProcessing={redistributingIdx === idx}
+                  onAction={() => handleRedistribute(idx)}
                 />
               ))}
             </div>
@@ -190,13 +226,56 @@ export default function Home() {
           </aside>
         </div>
       </main>
+
+      {/* Success Modal */}
+      {showSuccessModal && result && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-surface/80 backdrop-blur-md animate-in fade-in duration-300">
+          <Card className="max-w-md w-full bg-white p-12 relative shadow-2xl">
+            <button
+              onClick={() => setShowSuccessModal(false)}
+              className="absolute top-6 right-6 text-foreground/20 hover:text-foreground"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+            </button>
+
+            <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mb-8 mx-auto">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" /></svg>
+            </div>
+
+            <div className="text-center mb-12">
+              <h3 className="text-3xl font-black tracking-tight text-primary mb-2 uppercase">Orchestration Successful</h3>
+              <p className="text-foreground/40 text-sm uppercase font-bold tracking-widest">{result.item} IS READY FOR SHIPMENT</p>
+            </div>
+
+            <div className="space-y-4 mb-12">
+              <div className="p-6 bg-surface-low rounded-sm border-l-4 border-primary">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-[10px] font-black text-primary tracking-widest uppercase">{result.redistribution.label?.carrier} PRIORITY</span>
+                  <span className="text-[10px] font-bold text-foreground/30">ID: {result.redistribution.label?.label_id}</span>
+                </div>
+                <p className="text-sm font-bold text-foreground mb-1">TRACKING: {result.redistribution.label?.tracking_number}</p>
+                <p className="text-[10px] font-bold text-foreground/40 uppercase">SCHEDULED PICKUP: {result.redistribution.label?.pickup_window}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <Button variant="primary" className="w-full py-4 text-xs font-black tracking-widest uppercase">
+                Generate Shipping Label
+              </Button>
+              <Button variant="ghost" onClick={() => setShowSuccessModal(false)} className="w-full text-[10px] font-bold uppercase text-foreground/40">
+                Dismiss
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
 
-function InventoryCard({ title, category, bought, resale, health, image, trend, prediction, action, label }: any) {
+function InventoryCard({ title, category, bought, resale, health, image, trend, prediction, action, label, isProcessing, onAction }: any) {
   return (
-    <Card className="group relative" hover>
+    <Card className={`group relative transition-all duration-500 ${isProcessing ? "opacity-50 blur-[2px] scale-98" : ""}`} hover={!isProcessing}>
       <div className="relative aspect-square bg-surface-low rounded-xs mb-6 overflow-hidden flex items-center justify-center p-8">
         <img src={image} alt={title} className="w-full h-full object-contain opacity-80 group-hover:scale-105 transition-transform duration-500" />
         <div className="absolute top-3 right-3 flex flex-col items-end gap-2">
@@ -224,21 +303,25 @@ function InventoryCard({ title, category, bought, resale, health, image, trend, 
       </div>
 
       {action && (
-        <div className="mb-6 p-4 bg-primary text-white rounded-sm flex justify-between items-center">
+        <div className="mb-6 p-4 bg-primary text-white rounded-sm flex justify-between items-center transition-all group-hover:bg-primary-accent">
           <div>
             <p className="text-[9px] font-black tracking-widest opacity-60 mb-0.5 uppercase">Matchmaker Recommendation</p>
             <p className="text-xs font-bold leading-tight uppercase">{action}</p>
           </div>
           <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            {isProcessing ? (
+              <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            )}
           </div>
         </div>
       )}
 
       {prediction && !action && (
-        <div className="mb-6 p-3 bg-primary/5 rounded-xs border border-primary/10">
-          <p className="text-[10px] font-black text-primary tracking-wider uppercase mb-1">Peak Prediction</p>
-          <p className="text-xs font-bold text-foreground/80">{prediction}</p>
+        <div className="mb-6 p-3 bg-primary/5 rounded-xs border border-primary/10 text-primary">
+          <p className="text-[10px] font-black tracking-wider uppercase mb-1">Peak Prediction</p>
+          <p className="text-xs font-bold">{prediction}</p>
         </div>
       )}
 
@@ -253,8 +336,14 @@ function InventoryCard({ title, category, bought, resale, health, image, trend, 
       </div>
 
       <div className="flex gap-3">
-        <Button variant="ghost" size="sm" className="flex-1 bg-surface-low/50 border border-outline-variant/10 text-[10px] font-bold uppercase">
-          {label || (category === "Tech" ? "RECYCLE" : "LIST FOR SALE")}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="flex-1 bg-surface-low/50 border border-outline-variant/10 text-[10px] font-bold uppercase transition-all"
+          onClick={onAction}
+          disabled={isProcessing}
+        >
+          {isProcessing ? "PROCESSING..." : (label || (category === "Tech" ? "RECYCLE" : "LIST FOR SALE"))}
         </Button>
         <Button variant="ghost" size="sm" className="flex-1 bg-surface-low/50 border border-outline-variant/10 text-[10px] font-bold uppercase">
           {category === "Tech" ? "TRADE-IN" : "VIEW LCA"}
