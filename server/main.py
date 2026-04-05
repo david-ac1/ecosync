@@ -4,6 +4,9 @@ from pydantic import BaseModel
 from typing import List, Optional
 from services.market import market_service
 from services.predictor import predictor_engine
+from services.sustainability import shi_service
+from services.matchmaker import matchmaker_service
+from services.database import database_service
 import uvicorn
 import os
 from dotenv import load_dotenv
@@ -32,6 +35,9 @@ class InventoryItem(BaseModel):
     image_url: Optional[str] = None
     market_trend: Optional[str] = "Stable"
     peak_prediction: Optional[str] = None
+    matching_action: Optional[str] = None
+    action_label: Optional[str] = None
+    co2_saved: Optional[str] = None
 
 class FeedItem(BaseModel):
     source: str
@@ -48,16 +54,28 @@ items_db = [
 
 @app.get("/api/inventory", response_model=List[InventoryItem])
 async def get_inventory():
+    # Use Supabase if configured, otherwise fall back to mock store
+    db_items = database_service.get_inventory()
+    source_items = db_items if db_items is not None else items_db
+    
     dynamic_items = []
-    for item in items_db:
+    for item in source_items:
         price, trend = market_service.get_floor_price(item["title"])
         prediction = predictor_engine.predict_peak_window(item["title"], item["category"], item["bought_year"])
+        
+        # New Phase 3 Logic
+        health, co2 = shi_service.calculate_shi(item["category"], item["bought_year"], item["resale_value"])
+        matching_action, action_label = matchmaker_service.get_recommendation(item["category"], health, trend, prediction)
         
         dynamic_items.append({
             **item,
             "resale_value": price,
             "market_trend": trend,
-            "peak_prediction": prediction
+            "peak_prediction": prediction,
+            "health_score": health,
+            "matching_action": matching_action,
+            "action_label": action_label,
+            "co2_saved": co2
         })
     return dynamic_items
 

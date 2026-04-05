@@ -15,6 +15,9 @@ interface InventoryItem {
   image_url?: string;
   market_trend?: string;
   peak_prediction?: string;
+  matching_action?: string;
+  action_label?: string;
+  co2_saved?: string;
 }
 
 interface FeedItem {
@@ -64,6 +67,12 @@ export default function Home() {
     }
   };
 
+  // Calculate total CO2 offset from inventory
+  const totalCO2Offset = inventory.reduce((total, item) => {
+    const value = parseFloat(item.co2_saved?.replace('kg CO2', '') || '0');
+    return total + value;
+  }, 0);
+
   return (
     <div className="bg-surface text-foreground selection:bg-secondary selection:text-foreground font-sans">
       <Navbar />
@@ -96,7 +105,6 @@ export default function Home() {
 
         {/* Intelligence Banner */}
         <div className={`relative w-full h-48 rounded-md bg-gradient-to-br from-primary to-primary-accent overflow-hidden mb-16 flex items-center justify-center text-center transition-all duration-500 ${isAuditing ? "opacity-100 scale-102" : "opacity-90"}`}>
-          {/* Simple Graphic Patterns */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/3"></div>
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-white rounded-full translate-y-1/2 -translate-x-1/3"></div>
@@ -111,7 +119,6 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Scan Beam */}
           {isAuditing && <div className="absolute top-0 bottom-0 w-1/4 bg-white/20 animate-scan pointer-events-none"></div>}
         </div>
 
@@ -139,6 +146,8 @@ export default function Home() {
                   health={item.health_score}
                   trend={item.market_trend}
                   prediction={item.peak_prediction}
+                  action={item.matching_action}
+                  label={item.action_label}
                   image={item.image_url || "https://api.dicebear.com/7.x/identicon/svg?seed=item"}
                 />
               ))}
@@ -172,7 +181,7 @@ export default function Home() {
             <Card className="bg-primary text-white p-8 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full translate-x-1/3 -translate-y-1/3 blur-xl"></div>
               <h4 className="text-xl font-bold mb-4 relative z-10">Circular Impact</h4>
-              <p className="text-white/60 text-sm mb-8 relative z-10">By redistributing your ghost inventory, you could offset 420kg of CO2 this year.</p>
+              <p className="text-white/60 text-sm mb-8 relative z-10">By redistributing your ghost inventory, you could offset {totalCO2Offset.toFixed(1)}kg of CO2 this year.</p>
               <button className="flex items-center gap-2 text-secondary font-bold text-xs group relative z-10">
                 EXPLORE POTENTIAL
                 <svg className="group-hover:translate-x-1 transition-transform" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14m-7-7 7 7-7 7" /></svg>
@@ -185,7 +194,7 @@ export default function Home() {
   );
 }
 
-function InventoryCard({ title, category, bought, resale, health, image, trend, prediction }: any) {
+function InventoryCard({ title, category, bought, resale, health, image, trend, prediction, action, label }: any) {
   return (
     <Card className="group relative" hover>
       <div className="relative aspect-square bg-surface-low rounded-xs mb-6 overflow-hidden flex items-center justify-center p-8">
@@ -214,7 +223,19 @@ function InventoryCard({ title, category, bought, resale, health, image, trend, 
         </p>
       </div>
 
-      {prediction && (
+      {action && (
+        <div className="mb-6 p-4 bg-primary text-white rounded-sm flex justify-between items-center">
+          <div>
+            <p className="text-[9px] font-black tracking-widest opacity-60 mb-0.5 uppercase">Matchmaker Recommendation</p>
+            <p className="text-xs font-bold leading-tight uppercase">{action}</p>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+          </div>
+        </div>
+      )}
+
+      {prediction && !action && (
         <div className="mb-6 p-3 bg-primary/5 rounded-xs border border-primary/10">
           <p className="text-[10px] font-black text-primary tracking-wider uppercase mb-1">Peak Prediction</p>
           <p className="text-xs font-bold text-foreground/80">{prediction}</p>
@@ -223,7 +244,7 @@ function InventoryCard({ title, category, bought, resale, health, image, trend, 
 
       <div className="mb-8">
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[10px] font-bold text-foreground/40">SUSTAINABILITY HEALTH</span>
+          <span className="text-[10px] font-bold text-foreground/40 uppercase">Sustainability Health</span>
           <span className="text-[10px] font-bold text-secondary">{health}%</span>
         </div>
         <div className="w-full h-1 bg-surface-low rounded-full overflow-hidden">
@@ -232,10 +253,10 @@ function InventoryCard({ title, category, bought, resale, health, image, trend, 
       </div>
 
       <div className="flex gap-3">
-        <Button variant="ghost" size="sm" className="flex-1 bg-surface-low/50 border border-outline-variant/10 text-[10px]">
-          {category === "Tech" ? "RECYCLE" : "LIST FOR SALE"}
+        <Button variant="ghost" size="sm" className="flex-1 bg-surface-low/50 border border-outline-variant/10 text-[10px] font-bold uppercase">
+          {label || (category === "Tech" ? "RECYCLE" : "LIST FOR SALE")}
         </Button>
-        <Button variant="ghost" size="sm" className="flex-1 bg-surface-low/50 border border-outline-variant/10 text-[10px]">
+        <Button variant="ghost" size="sm" className="flex-1 bg-surface-low/50 border border-outline-variant/10 text-[10px] font-bold uppercase">
           {category === "Tech" ? "TRADE-IN" : "VIEW LCA"}
         </Button>
       </div>
@@ -247,10 +268,10 @@ function FeedItem({ source, message, time, status }: any) {
   return (
     <div className="pl-6 relative">
       <div className="absolute left-0 top-1.5 w-3 h-3 rounded-full bg-secondary border-4 border-surface "></div>
-      <p className="text-[10px] font-black text-primary tracking-wider mb-1 leading-none">{source}</p>
+      <p className="text-[10px] font-black text-primary tracking-wider mb-1 leading-none uppercase">{source}</p>
       <p className="text-xs font-medium text-foreground tracking-tight leading-tight mb-1">{message}</p>
       <div className="flex items-center gap-2">
-        <span className="text-[9px] font-bold text-foreground/20">{time}</span>
+        <span className="text-[9px] font-bold text-foreground/20 uppercase">{time}</span>
         {status && (
           <>
             <span className="text-[9px] text-foreground/10">•</span>
