@@ -13,17 +13,38 @@ interface InventoryItem {
   resale_value: string;
   health_score: number;
   image_url?: string;
+  market_trend?: string;
+  peak_prediction?: string;
+}
+
+interface FeedItem {
+  source: string;
+  message: string;
+  time: string;
+  status?: string;
 }
 
 export default function Home() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [feed, setFeed] = useState<FeedItem[]>([]);
   const [isAuditing, setIsAuditing] = useState(false);
 
   useEffect(() => {
+    // Fetch Inventory
     fetch("http://localhost:8000/api/inventory")
       .then((res) => res.json())
-      .then((data) => setInventory(data))
+      .then((data) => {
+        if (Array.isArray(data)) setInventory(data);
+      })
       .catch((err) => console.error("Error fetching inventory:", err));
+
+    // Fetch Feed
+    fetch("http://localhost:8000/api/feed")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setFeed(data);
+      })
+      .catch((err) => console.error("Error fetching feed:", err));
   }, []);
 
   const handleStartAudit = async () => {
@@ -108,7 +129,7 @@ export default function Home() {
             </div>
 
             <div className="grid grid-cols-2 gap-6">
-              {inventory.map((item, idx) => (
+              {Array.isArray(inventory) && inventory.map((item, idx) => (
                 <InventoryCard
                   key={idx}
                   title={item.title}
@@ -116,6 +137,8 @@ export default function Home() {
                   bought={item.bought_year}
                   resale={item.resale_value}
                   health={item.health_score}
+                  trend={item.market_trend}
+                  prediction={item.peak_prediction}
                   image={item.image_url || "https://api.dicebear.com/7.x/identicon/svg?seed=item"}
                 />
               ))}
@@ -131,22 +154,15 @@ export default function Home() {
               </div>
               <div className="space-y-8 relative">
                 <div className="absolute left-1.5 top-2 bottom-2 w-0.5 bg-surface-low"></div>
-                <FeedItem
-                  source="GMAIL CONNECTOR"
-                  message="New receipt detected: Peak Design Travel Backpack"
-                  time="JUST NOW"
-                  status="SYSTEM SYNC"
-                />
-                <FeedItem
-                  source="MARKET INTELLIGENCE"
-                  message="Resale value for 'iPhone 13' increased by 4.2%"
-                  time="2 HOURS AGO"
-                />
-                <FeedItem
-                  source="AMAZON SYNC"
-                  message="Order #9924 verified: Sony WH-1000XM5"
-                  time="YESTERDAY"
-                />
+                {Array.isArray(feed) && feed.map((item, idx) => (
+                  <FeedItem
+                    key={idx}
+                    source={item.source}
+                    message={item.message}
+                    time={item.time}
+                    status={item.status}
+                  />
+                ))}
               </div>
               <Button variant="ghost" size="sm" className="w-full mt-8 border border-outline-variant/15 text-foreground/40">
                 VIEW FULL HISTORY
@@ -169,13 +185,20 @@ export default function Home() {
   );
 }
 
-function InventoryCard({ title, category, bought, resale, health, image }: any) {
+function InventoryCard({ title, category, bought, resale, health, image, trend, prediction }: any) {
   return (
     <Card className="group relative" hover>
       <div className="relative aspect-square bg-surface-low rounded-xs mb-6 overflow-hidden flex items-center justify-center p-8">
         <img src={image} alt={title} className="w-full h-full object-contain opacity-80 group-hover:scale-105 transition-transform duration-500" />
-        <div className="absolute top-3 right-3 px-3 py-1 bg-white shadow-sm rounded-full text-[10px] font-bold text-primary">
-          EST. RESALE: {resale}
+        <div className="absolute top-3 right-3 flex flex-col items-end gap-2">
+          <div className="px-3 py-1 bg-white shadow-sm rounded-full text-[10px] font-bold text-primary">
+            EST. RESALE: {resale}
+          </div>
+          {trend && (
+            <div className={`px-3 py-1 shadow-sm rounded-full text-[10px] font-bold ${trend === 'Rising' ? 'bg-secondary text-primary' : 'bg-surface-low text-foreground/40'}`}>
+              {trend}
+            </div>
+          )}
         </div>
       </div>
 
@@ -190,6 +213,13 @@ function InventoryCard({ title, category, bought, resale, health, image }: any) 
           {category} • BOUGHT {bought}
         </p>
       </div>
+
+      {prediction && (
+        <div className="mb-6 p-3 bg-primary/5 rounded-xs border border-primary/10">
+          <p className="text-[10px] font-black text-primary tracking-wider uppercase mb-1">Peak Prediction</p>
+          <p className="text-xs font-bold text-foreground/80">{prediction}</p>
+        </div>
+      )}
 
       <div className="mb-8">
         <div className="flex items-center justify-between mb-1.5">

@@ -2,9 +2,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
+from services.market import market_service
+from services.predictor import predictor_engine
 import uvicorn
 import os
 from dotenv import load_dotenv
+import random
 
 load_dotenv()
 
@@ -27,6 +30,14 @@ class InventoryItem(BaseModel):
     resale_value: str
     health_score: int
     image_url: Optional[str] = None
+    market_trend: Optional[str] = "Stable"
+    peak_prediction: Optional[str] = None
+
+class FeedItem(BaseModel):
+    source: str
+    message: str
+    time: str
+    status: Optional[str] = None
 
 # In-memory mock store for now (until Supabase is connected)
 items_db = [
@@ -37,7 +48,27 @@ items_db = [
 
 @app.get("/api/inventory", response_model=List[InventoryItem])
 async def get_inventory():
-    return items_db
+    dynamic_items = []
+    for item in items_db:
+        price, trend = market_service.get_floor_price(item["title"])
+        prediction = predictor_engine.predict_peak_window(item["title"], item["category"], item["bought_year"])
+        
+        dynamic_items.append({
+            **item,
+            "resale_value": price,
+            "market_trend": trend,
+            "peak_prediction": prediction
+        })
+    return dynamic_items
+
+@app.get("/api/feed", response_model=List[FeedItem])
+async def get_feed():
+    return [
+        {"source": "GMAIL CONNECTOR", "message": "New receipt detected: Peak Design Travel Backpack", "time": "JUST NOW", "status": "SYSTEM SYNC"},
+        {"source": "MARKET INTELLIGENCE", "message": f"Resale value for 'iPhone 13' increased by {random.uniform(1.2, 5.0):.1f}%", "time": "2 HOURS AGO"},
+        {"source": "AMAZON SYNC", "message": "Order #9924 verified: Sony WH-1000XM5", "time": "YESTERDAY"},
+        {"source": "POLICY UPDATE", "message": "New EU circularity standards integrated", "time": "2 DAYS AGO"},
+    ]
 
 @app.post("/api/audit/start")
 async def start_audit():
