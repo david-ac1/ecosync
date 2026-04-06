@@ -46,26 +46,33 @@ export default function Home() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [isAuditing, setIsAuditing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [redistributingIdx, setRedistributingIdx] = useState<number | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [result, setResult] = useState<RedistributionResult | null>(null);
 
-  useEffect(() => {
-    // Fetch Inventory
+  const fetchInventory = () => {
     fetch("http://localhost:8000/api/inventory")
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setInventory(data);
       })
       .catch((err) => console.error("Error fetching inventory:", err));
+  };
 
-    // Fetch Feed
+  const fetchFeed = () => {
     fetch("http://localhost:8000/api/feed")
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setFeed(data);
       })
       .catch((err) => console.error("Error fetching feed:", err));
+  };
+
+  useEffect(() => {
+    fetchInventory();
+    fetchFeed();
   }, []);
 
   const handleStartAudit = async () => {
@@ -77,12 +84,40 @@ export default function Home() {
 
       // Simulate scanning for 3 seconds before resetting
       setTimeout(() => {
+        fetchInventory();
+        fetchFeed();
         setIsAuditing(false);
       }, 3000);
     } catch (err) {
       console.error("Error starting audit:", err);
       setIsAuditing(false);
     }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    setIsUploading(true);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("http://localhost:8000/api/ingest/upload", {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        fetchInventory();
+        fetchFeed();
+      }
+    } catch (err) {
+      console.error("Error uploading file:", err);
+    }
+
+    setIsUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleRedistribute = async (idx: number) => {
@@ -107,6 +142,17 @@ export default function Home() {
     return total + value;
   }, 0);
 
+  // Calculate dynamic inventory resale value
+  const totalInventoryValue = inventory.reduce((total, item) => {
+    const parsedVal = parseFloat(item.resale_value.replace(/[^0-9.-]+/g, ""));
+    return total + (isNaN(parsedVal) ? 0 : parsedVal);
+  }, 0);
+
+  const formattedValue = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(totalInventoryValue);
+
   return (
     <div className="bg-surface text-foreground selection:bg-secondary selection:text-foreground font-sans min-h-screen relative">
       <Navbar />
@@ -119,7 +165,7 @@ export default function Home() {
               Ghost Inventory Dashboard
             </p>
             <h1 className="text-8xl font-black tracking-tighter text-primary leading-none mb-6">
-              $12,480.00
+              {formattedValue}
             </h1>
             <p className="text-xl text-foreground/40 max-w-md leading-relaxed">
               Value Locked in inactive personal assets. Ready for circular redistribution.
@@ -137,23 +183,40 @@ export default function Home() {
           </Button>
         </div>
 
-        {/* Intelligence Banner */}
-        <div className={`relative w-full h-48 rounded-md bg-gradient-to-br from-primary to-primary-accent overflow-hidden mb-16 flex items-center justify-center text-center transition-all duration-500 ${isAuditing ? "opacity-100 scale-102" : "opacity-90"}`}>
+        {/* Intelligence Banner & Upload Area */}
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          className={`relative w-full h-48 cursor-pointer rounded-md bg-gradient-to-br from-primary to-primary-accent overflow-hidden mb-16 flex items-center justify-center text-center transition-all duration-500 hover:scale-[1.01] ${isAuditing || isUploading ? "opacity-100 scale-[1.01]" : "opacity-90"} group`}
+        >
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept="image/*,application/pdf"
+            onChange={handleFileUpload}
+          />
           <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/3"></div>
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white rounded-full translate-y-1/2 -translate-x-1/3"></div>
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/3 transition-transform duration-700 group-hover:scale-110"></div>
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white rounded-full translate-y-1/2 -translate-x-1/3 transition-transform duration-700 group-hover:scale-110"></div>
           </div>
 
-          <div className="relative z-10">
+          <div className="relative z-10 transition-transform duration-500 group-hover:-translate-y-1">
+            <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-white/20 transition-colors duration-300">
+              {isUploading ? (
+                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+              )}
+            </div>
             <h2 className="text-3xl font-bold text-white mb-2">
-              {isAuditing ? "Scanning Platforms..." : "Intelligence Engine Active"}
+              {isUploading ? "Vision Engine Parsing..." : (isAuditing ? "Scanning Platforms..." : "Upload Receipt or Invoice")}
             </h2>
             <p className="text-white/60 text-sm">
-              {isAuditing ? "Parsing receipt data for 42 connected accounts" : "Scanning 42 connected digital platforms for circular opportunities"}
+              {isUploading ? "Claude is extracting asset metadata" : (isAuditing ? "Parsing receipt data for 42 connected accounts" : "Click to manually ingest a physical or digital asset into your ghost inventory")}
             </p>
           </div>
 
-          {isAuditing && <div className="absolute top-0 bottom-0 w-1/4 bg-white/20 animate-scan pointer-events-none"></div>}
+          {(isAuditing || isUploading) && <div className="absolute top-0 bottom-0 w-1/4 bg-white/20 animate-scan pointer-events-none"></div>}
         </div>
 
         {/* Dashboard Grid */}
@@ -169,25 +232,35 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
-              {Array.isArray(inventory) && inventory.map((item, idx) => (
-                <InventoryCard
-                  key={idx}
-                  title={item.title}
-                  category={item.category}
-                  bought={item.bought_year}
-                  resale={item.resale_value}
-                  health={item.health_score}
-                  trend={item.market_trend}
-                  prediction={item.peak_prediction}
-                  action={item.matching_action}
-                  label={item.action_label}
-                  image={item.image_url || "https://api.dicebear.com/7.x/identicon/svg?seed=item"}
-                  isProcessing={redistributingIdx === idx}
-                  onAction={() => handleRedistribute(idx)}
-                />
-              ))}
-            </div>
+            {inventory.length === 0 ? (
+              <div className="col-span-2 p-16 text-center border-2 border-dashed border-outline-variant/30 rounded-md">
+                <div className="w-12 h-12 bg-surface-low rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground/30"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                </div>
+                <p className="text-foreground/40 font-bold mb-2 uppercase tracking-widest text-sm">Ghost Inventory is Empty</p>
+                <p className="text-foreground/30 text-xs">Upload a receipt or run an audit sync to detect latent assets.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-6">
+                {Array.isArray(inventory) && inventory.map((item, idx) => (
+                  <InventoryCard
+                    key={idx}
+                    title={item.title}
+                    category={item.category}
+                    bought={item.bought_year}
+                    resale={item.resale_value}
+                    health={item.health_score}
+                    trend={item.market_trend}
+                    prediction={item.peak_prediction}
+                    action={item.matching_action}
+                    label={item.action_label}
+                    image={item.image_url || "https://api.dicebear.com/7.x/identicon/svg?seed=item"}
+                    isProcessing={redistributingIdx === idx}
+                    onAction={() => handleRedistribute(idx)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Sidebar */}
